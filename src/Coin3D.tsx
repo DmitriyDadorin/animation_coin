@@ -13,6 +13,8 @@ interface CoinProps {
   bounce?: boolean; // включает подпрыгивание монеты, по умолчанию false
   bounceAmplitude?: number; // амплитуда подпрыгивания, по умолчанию 0.2
   bounceSpeed?: number; // скорость подпрыгивания, по умолчанию 2
+  autoStopAfterTurns?: boolean; // если true, монета останавливается после указанного числа оборотов
+  numTurns?: number; // число полных оборотов (default 3)
 }
 
 const CoinWithEmbeddedStars: React.FC<CoinProps> = ({
@@ -27,10 +29,11 @@ const CoinWithEmbeddedStars: React.FC<CoinProps> = ({
   bounce = false,
   bounceAmplitude = 0.2,
   bounceSpeed = 2,
+  autoStopAfterTurns = false,
+  numTurns = 3,
 }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
 
-  // Функция для генерации текстуры монеты
   const generateCoinTexture = (
     outerColor: string,
     innerColor: string,
@@ -43,17 +46,14 @@ const CoinWithEmbeddedStars: React.FC<CoinProps> = ({
     const center = size / 2;
     const innerRadius = size * 0.45;
 
-    // Фоновое кольцо
     ctx.fillStyle = outerColor;
     ctx.fillRect(0, 0, size, size);
 
-    // Внутренний круг
     ctx.beginPath();
     ctx.fillStyle = innerColor;
     ctx.arc(center, center, innerRadius, 0, 2 * Math.PI);
     ctx.fill();
 
-    // Отблески на внутреннем круге
     ctx.save();
     ctx.beginPath();
     ctx.arc(center, center, innerRadius, 0, 2 * Math.PI);
@@ -76,15 +76,9 @@ const CoinWithEmbeddedStars: React.FC<CoinProps> = ({
     const container = canvasRef.current;
     if (!container) return;
     container.innerHTML = "";
-
     const { clientWidth, clientHeight } = container;
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(
-      70,
-      clientWidth / clientHeight,
-      0.1,
-      1000
-    );
+    const camera = new THREE.PerspectiveCamera(70, clientWidth / clientHeight, 0.1, 1000);
     camera.position.z = 3;
 
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
@@ -92,39 +86,22 @@ const CoinWithEmbeddedStars: React.FC<CoinProps> = ({
     container.appendChild(renderer.domElement);
 
     const group = new THREE.Group();
-
     const textureSize = 512;
-    const coinTexture = generateCoinTexture(
-      outerRingColor,
-      innerCircleColor,
-      textureSize
-    );
-
-    const coinGeometry = new THREE.CylinderGeometry(
-      coinRadius,
-      coinRadius,
-      coinThickness,
-      64
-    );
-    coinGeometry.rotateX(Math.PI / 2); // Ориентируем монету вдоль оси Z
+    const coinTexture = generateCoinTexture(outerRingColor, innerCircleColor, textureSize);
+    const coinGeometry = new THREE.CylinderGeometry(coinRadius, coinRadius, coinThickness, 64);
+    coinGeometry.rotateX(Math.PI / 2);
 
     const faceMaterial = new THREE.MeshBasicMaterial({ map: coinTexture });
     const edgeMaterial = new THREE.MeshBasicMaterial({ color: edgeColor });
-
-    const coinMesh = new THREE.Mesh(coinGeometry, [
-      edgeMaterial,
-      faceMaterial,
-      faceMaterial,
-    ]);
+    const coinMesh = new THREE.Mesh(coinGeometry, [edgeMaterial, faceMaterial, faceMaterial]);
     group.add(coinMesh);
 
-    // Функция для создания звезды – теперь определена внутри useEffect
+    // Функция для создания звезды определена внутри useEffect
     const createStar = (): THREE.Mesh => {
       const starShape = new THREE.Shape();
       const outerR = coinRadius * 0.5;
       const innerR = coinRadius * 0.25;
       const spikes = 5;
-
       for (let i = 0; i < spikes * 2; i++) {
         const angle = (i / (spikes * 2)) * Math.PI * 2;
         const radius = i % 2 === 0 ? outerR : innerR;
@@ -137,7 +114,6 @@ const CoinWithEmbeddedStars: React.FC<CoinProps> = ({
         }
       }
       starShape.closePath();
-
       const extrudeSettings = {
         depth: 0.1,
         bevelEnabled: true,
@@ -145,20 +121,15 @@ const CoinWithEmbeddedStars: React.FC<CoinProps> = ({
         bevelSize: 0.02,
         bevelSegments: 5,
       };
-
-      const starGeometry = new THREE.ExtrudeGeometry(
-        starShape,
-        extrudeSettings
-      );
+      const starGeometry = new THREE.ExtrudeGeometry(starShape, extrudeSettings);
       starGeometry.computeVertexNormals();
       starGeometry.center();
-
       const starMaterial = new THREE.MeshBasicMaterial({ color: starColor });
       return new THREE.Mesh(starGeometry, starMaterial);
     };
 
     const starFront = createStar();
-    starFront.rotation.z = Math.PI / 12; // Разворот на 15°
+    starFront.rotation.z = Math.PI / 12;
     starFront.position.set(0, 0, coinThickness / 2 - 0.05);
     group.add(starFront);
 
@@ -171,16 +142,39 @@ const CoinWithEmbeddedStars: React.FC<CoinProps> = ({
     scene.add(group);
 
     const clock = new THREE.Clock();
+    let totalRotation = 0;
+    const targetRotation = autoStopAfterTurns ? numTurns * Math.PI : Infinity;
+
     const animate = () => {
       requestAnimationFrame(animate);
       const elapsed = clock.getElapsedTime();
 
-      if (bounce) {
-        const newY =
-          Math.abs(Math.sin(elapsed * bounceSpeed)) * bounceAmplitude;
-        group.position.y = newY;
+      if (totalRotation < targetRotation) {
+        // Обновление подпрыгивания, если включено
+        if (bounce) {
+          const newY = Math.abs(Math.sin(elapsed * bounceSpeed)) * bounceAmplitude;
+          group.position.y = newY;
+        }
+        let deltaRotation = 0.015;
+        if (totalRotation + deltaRotation > targetRotation) {
+          deltaRotation = targetRotation - totalRotation;
+        }
+        group.rotation.y += deltaRotation;
+        totalRotation += deltaRotation;
+      } else {
+        group.rotation.y = targetRotation;
+        // Если монета остановлена, сбрасываем подпрыгивание
+        group.position.y = 0;
       }
-      group.rotation.y += 0.015;
+
+      // Если автоостановка не включена, продолжаем стандартное вращение
+      if (!autoStopAfterTurns) {
+        if (bounce) {
+          const newY = Math.abs(Math.sin(elapsed * bounceSpeed)) * bounceAmplitude;
+          group.position.y = newY;
+        }
+        group.rotation.y += 0.015;
+      }
       renderer.render(scene, camera);
     };
     animate();
@@ -214,6 +208,8 @@ const CoinWithEmbeddedStars: React.FC<CoinProps> = ({
     bounce,
     bounceAmplitude,
     bounceSpeed,
+    autoStopAfterTurns,
+    numTurns,
   ]);
 
   return (
