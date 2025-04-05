@@ -1,7 +1,19 @@
+import { useRef } from "react";
 import "./App.css";
-import CoinWithEmbeddedStars from "./Coin3D";
+import CoinWithEmbeddedStars, { CoinRef } from "./Coin3D";
 
 function App() {
+  const coinRefs = [
+    useRef<CoinRef>(null),
+    useRef<CoinRef>(null),
+    useRef<CoinRef>(null),
+    useRef<CoinRef>(null),
+  ];
+
+  const handleRestart = () => {
+    coinRefs.forEach((ref) => ref.current?.startRotation());
+  };
+
   return (
     <>
       <h1>Монета</h1>
@@ -13,6 +25,7 @@ function App() {
         }}
       >
         <CoinWithEmbeddedStars
+          ref={coinRefs[0]}
           width={100}
           height={100}
           outerRingColor="#d5d5d5"
@@ -23,12 +36,14 @@ function App() {
           numTurns={3}
         />
         <CoinWithEmbeddedStars
+          ref={coinRefs[1]}
           width={100}
           height={100}
           autoStopAfterTurns
           numTurns={3}
         />
         <CoinWithEmbeddedStars
+          ref={coinRefs[2]}
           width={150}
           height={150}
           bounce
@@ -37,6 +52,7 @@ function App() {
           numTurns={3}
         />
         <CoinWithEmbeddedStars
+          ref={coinRefs[3]}
           width={100}
           height={100}
           outerRingColor="#e6c0ff"
@@ -47,6 +63,7 @@ function App() {
           numTurns={3}
         />
       </div>
+      <button onClick={handleRestart}>Перезапустить вращение</button>
     </>
   );
 }
