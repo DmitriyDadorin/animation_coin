@@ -13,8 +13,6 @@ interface CoinProps {
   bounce?: boolean; // включает подпрыгивание монеты, по умолчанию false
   bounceAmplitude?: number; // амплитуда подпрыгивания, по умолчанию 0.2
   bounceSpeed?: number; // скорость подпрыгивания, по умолчанию 2
-  dust?: boolean; // включает эффект пыли, по умолчанию false
-  dustParticleCount?: number; // количество частиц пыли, по умолчанию 50
 }
 
 const CoinWithEmbeddedStars: React.FC<CoinProps> = ({
@@ -29,8 +27,6 @@ const CoinWithEmbeddedStars: React.FC<CoinProps> = ({
   bounce = false,
   bounceAmplitude = 0.2,
   bounceSpeed = 2,
-  dust = false,
-  dustParticleCount = 50,
 }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
 
@@ -106,7 +102,6 @@ const CoinWithEmbeddedStars: React.FC<CoinProps> = ({
     coinTexture.anisotropy = 16;
 
     // ===================== 2) ГЕОМЕТРИЯ И МАТЕРИАЛЫ МОНЕТЫ =====================
-    // Создаём цилиндр (по умолчанию он ориентирован вдоль оси Y)
     const coinGeometry = new THREE.CylinderGeometry(
       coinRadius,
       coinRadius,
@@ -114,7 +109,6 @@ const CoinWithEmbeddedStars: React.FC<CoinProps> = ({
       64
     );
     // Поворачиваем геометрию так, чтобы монета была ориентирована вдоль оси Z:
-    // передняя грань будет на z = coinThickness/2, задняя – на z = -coinThickness/2.
     coinGeometry.rotateX(Math.PI / 2);
 
     const faceMaterial = new THREE.MeshBasicMaterial({
@@ -124,7 +118,6 @@ const CoinWithEmbeddedStars: React.FC<CoinProps> = ({
       color: edgeColor,
     });
 
-    // Создаём Mesh без последующего поворота
     const coinMesh = new THREE.Mesh(coinGeometry, [
       edgeMaterial,
       faceMaterial,
@@ -179,159 +172,24 @@ const CoinWithEmbeddedStars: React.FC<CoinProps> = ({
 
     // Задняя звезда (на задней грани, z = -coinThickness/2)
     const starBack = createStar();
-    // Для зеркального отображения используем поворот вокруг оси Y
     starBack.rotation.y = Math.PI;
-    starBack.rotation.z = Math.PI / -12;
+    starBack.rotation.z = -Math.PI / 12;
     starBack.position.set(0, 0, -coinThickness / 2 + 0.05);
     group.add(starBack);
 
     scene.add(group);
 
-    // ===================== 4) ЭФФЕКТ ПЫЛИ =====================
-    // Массив систем пыли, каждая система обновляется в animate
-    const dustSystems: Array<{
-      points: THREE.Points;
-      velocities: THREE.Vector3[];
-      life: number;
-      maxLife: number;
-    }> = [];
-
-    // Функция спавна пыли, равномерно покрывающая всю поверхность монеты
-    const spawnDust = () => {
-      const count = dustParticleCount;
-      const geometry = new THREE.BufferGeometry();
-      const positions = new Float32Array(count * 3);
-      const velocities: THREE.Vector3[] = [];
-
-      // Рассчитываем площади поверхностей
-      const areaTop = Math.PI * coinRadius * coinRadius; // верхняя грань (z = coinThickness/2)
-      const areaBottom = Math.PI * coinRadius * coinRadius; // нижняя грань (z = -coinThickness/2)
-      const areaEdge = 2 * Math.PI * coinRadius * coinThickness; // боковая поверхность (ребро)
-      const totalArea = areaTop + areaBottom + areaEdge;
-
-      for (let i = 0; i < count; i++) {
-        const rArea = Math.random() * totalArea;
-        const localPos = new THREE.Vector3();
-
-        if (rArea < areaTop) {
-          // Верхняя грань: z = coinThickness/2
-          const angle = Math.random() * 2 * Math.PI;
-          const r = coinRadius * Math.sqrt(Math.random());
-          localPos.set(
-            r * Math.cos(angle),
-            r * Math.sin(angle),
-            coinThickness / 2
-          );
-        } else if (rArea < areaTop + areaBottom) {
-          // Нижняя грань: z = -coinThickness/2
-          const angle = Math.random() * 2 * Math.PI;
-          const r = coinRadius * Math.sqrt(Math.random());
-          localPos.set(
-            r * Math.cos(angle),
-            r * Math.sin(angle),
-            -coinThickness / 2
-          );
-        } else {
-          // Боковая поверхность (ребро): точка на окружности (в плоскости XY) и z между -coinThickness/2 и coinThickness/2
-          const theta = Math.random() * 2 * Math.PI;
-          const zPos = (Math.random() - 0.5) * coinThickness;
-          localPos.set(
-            coinRadius * Math.cos(theta),
-            coinRadius * Math.sin(theta),
-            zPos
-          );
-        }
-
-        // Преобразуем локальную позицию в мировую (учитывая поворот и позицию монеты)
-        coinMesh.localToWorld(localPos);
-
-        positions[i * 3] = localPos.x;
-        positions[i * 3 + 1] = localPos.y;
-        positions[i * 3 + 2] = localPos.z;
-
-        // Задаём случайную начальную скорость для частицы
-        const vx = (Math.random() - 0.5) * 0.2;
-        const vy = Math.random() * 0.2;
-        const vz = (Math.random() - 0.5) * 0.2;
-        velocities.push(new THREE.Vector3(vx, vy, vz));
-      }
-
-      geometry.setAttribute(
-        "position",
-        new THREE.BufferAttribute(positions, 3)
-      );
-
-      const material = new THREE.PointsMaterial({
-        color: outerRingColor,
-        size: 0.05,
-        transparent: true,
-        opacity: 1,
-      });
-
-      const points = new THREE.Points(geometry, material);
-      scene.add(points);
-
-      dustSystems.push({
-        points,
-        velocities,
-        life: 0,
-        maxLife: 1.5, // время жизни системы пыли
-      });
-    };
-
-    // ===================== 5) АНИМАЦИЯ =====================
+    // ===================== 4) АНИМАЦИЯ =====================
     const clock = new THREE.Clock();
-    let dustTriggered = false; // чтобы спавнить пыль один раз за цикл падения
-
     const animate = () => {
       requestAnimationFrame(animate);
-      const delta = clock.getDelta();
       const elapsed = clock.getElapsedTime();
 
       // Подпрыгивание монеты
       if (bounce) {
-        // Вычисляем новую высоту по синусоиде
         const newY =
           Math.abs(Math.sin(elapsed * bounceSpeed)) * bounceAmplitude;
         group.position.y = newY;
-
-        // Если монета почти коснулась пола и пыль ещё не спавнена, запускаем эффект пыли
-        if (newY < 0.05 && !dustTriggered && dust) {
-          spawnDust();
-          dustTriggered = true;
-        }
-        if (newY >= 0.05) {
-          dustTriggered = false;
-        }
-      }
-
-      // Обновление систем пыли
-      for (let i = dustSystems.length - 1; i >= 0; i--) {
-        const ds = dustSystems[i];
-        ds.life += delta;
-        const positions = ds.points.geometry.attributes.position
-          .array as Float32Array;
-        for (let j = 0; j < ds.velocities.length; j++) {
-          const idx = j * 3;
-          // Применяем гравитацию к частицам
-          ds.velocities[j].y -= 0.98 * delta;
-          positions[idx] += ds.velocities[j].x * delta;
-          positions[idx + 1] += ds.velocities[j].y * delta;
-          positions[idx + 2] += ds.velocities[j].z * delta;
-        }
-        ds.points.geometry.attributes.position.needsUpdate = true;
-        // Постепенно уменьшаем прозрачность
-        (ds.points.material as THREE.PointsMaterial).opacity = Math.max(
-          1 - ds.life / ds.maxLife,
-          0
-        );
-        // Удаляем систему пыли, когда её жизнь закончилась
-        if (ds.life > ds.maxLife) {
-          scene.remove(ds.points);
-          ds.points.geometry.dispose();
-          (ds.points.material as THREE.PointsMaterial).dispose();
-          dustSystems.splice(i, 1);
-        }
       }
 
       group.rotation.y += 0.015;
@@ -339,7 +197,7 @@ const CoinWithEmbeddedStars: React.FC<CoinProps> = ({
     };
     animate();
 
-    // ===================== 6) РЕСАЙЗ =====================
+    // ===================== 5) РЕСАЙЗ =====================
     const handleResize = () => {
       if (!canvasRef.current) return;
       const { clientWidth, clientHeight } = canvasRef.current;
@@ -369,8 +227,6 @@ const CoinWithEmbeddedStars: React.FC<CoinProps> = ({
     bounce,
     bounceAmplitude,
     bounceSpeed,
-    dust,
-    dustParticleCount,
   ]);
 
   return (
