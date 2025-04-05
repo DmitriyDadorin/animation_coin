@@ -21,10 +21,21 @@ function App() {
           edgeColor="#949494"
         />
         <CoinWithEmbeddedStars width={100} height={100} />
-        <CoinWithEmbeddedStars width={150} height={150} />
         <CoinWithEmbeddedStars
-          width={100}
-          height={100}
+          // width={100}
+          // height={100}
+          bounce
+          dust
+          dustParticleCount={5000}
+          bounceAmplitude={0.3}
+        />
+        <CoinWithEmbeddedStars
+          // width={100}
+          // height={100}
+          bounce
+          dust
+          dustParticleCount={10000}
+          bounceAmplitude={0.3}
           outerRingColor="#e6c0ff"
           innerCircleColor="#e6c0ff"
           starColor="#c1a0d3"
