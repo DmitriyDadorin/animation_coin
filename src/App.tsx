@@ -22,16 +22,16 @@ function App() {
         />
         <CoinWithEmbeddedStars width={100} height={100} />
         <CoinWithEmbeddedStars
-          // width={100}
-          // height={100}
+          width={150}
+          height={150}
           bounce
           bounceAmplitude={0.3}
         />
         <CoinWithEmbeddedStars
-          // width={100}
-          // height={100}
-          bounce
-          bounceAmplitude={0.3}
+          width={100}
+          height={100}
+          // bounce
+          // bounceAmplitude={0.3}
           outerRingColor="#e6c0ff"
           innerCircleColor="#e6c0ff"
           starColor="#c1a0d3"
