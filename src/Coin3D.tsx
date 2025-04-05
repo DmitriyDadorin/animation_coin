@@ -15,6 +15,7 @@ interface CoinProps {
   bounceSpeed?: number; // скорость подпрыгивания, по умолчанию 2
   autoStopAfterTurns?: boolean; // если true, монета останавливается после указанного числа оборотов
   numTurns?: number; // число полных оборотов (default 3)
+  rotationOffset?: number; // угол недокручивания (по умолчанию 0)
 }
 
 const CoinWithEmbeddedStars: React.FC<CoinProps> = ({
@@ -31,6 +32,7 @@ const CoinWithEmbeddedStars: React.FC<CoinProps> = ({
   bounceSpeed = 2,
   autoStopAfterTurns = false,
   numTurns = 3,
+  rotationOffset = 0,
 }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
 
@@ -78,7 +80,12 @@ const CoinWithEmbeddedStars: React.FC<CoinProps> = ({
     container.innerHTML = "";
     const { clientWidth, clientHeight } = container;
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(70, clientWidth / clientHeight, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(
+      70,
+      clientWidth / clientHeight,
+      0.1,
+      1000
+    );
     camera.position.z = 3;
 
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
@@ -87,16 +94,29 @@ const CoinWithEmbeddedStars: React.FC<CoinProps> = ({
 
     const group = new THREE.Group();
     const textureSize = 512;
-    const coinTexture = generateCoinTexture(outerRingColor, innerCircleColor, textureSize);
-    const coinGeometry = new THREE.CylinderGeometry(coinRadius, coinRadius, coinThickness, 64);
+    const coinTexture = generateCoinTexture(
+      outerRingColor,
+      innerCircleColor,
+      textureSize
+    );
+    const coinGeometry = new THREE.CylinderGeometry(
+      coinRadius,
+      coinRadius,
+      coinThickness,
+      64
+    );
     coinGeometry.rotateX(Math.PI / 2);
 
     const faceMaterial = new THREE.MeshBasicMaterial({ map: coinTexture });
     const edgeMaterial = new THREE.MeshBasicMaterial({ color: edgeColor });
-    const coinMesh = new THREE.Mesh(coinGeometry, [edgeMaterial, faceMaterial, faceMaterial]);
+    const coinMesh = new THREE.Mesh(coinGeometry, [
+      edgeMaterial,
+      faceMaterial,
+      faceMaterial,
+    ]);
     group.add(coinMesh);
 
-    // Функция для создания звезды определена внутри useEffect
+    // Функция для создания звезды
     const createStar = (): THREE.Mesh => {
       const starShape = new THREE.Shape();
       const outerR = coinRadius * 0.5;
@@ -143,35 +163,46 @@ const CoinWithEmbeddedStars: React.FC<CoinProps> = ({
 
     const clock = new THREE.Clock();
     let totalRotation = 0;
-    const targetRotation = autoStopAfterTurns ? numTurns * Math.PI : Infinity;
+    const targetRotation = autoStopAfterTurns
+      ? numTurns * Math.PI - rotationOffset
+      : Infinity;
 
     const animate = () => {
       requestAnimationFrame(animate);
       const elapsed = clock.getElapsedTime();
 
-      if (totalRotation < targetRotation) {
-        // Обновление подпрыгивания, если включено
-        if (bounce) {
-          const newY = Math.abs(Math.sin(elapsed * bounceSpeed)) * bounceAmplitude;
-          group.position.y = newY;
-        }
-        let deltaRotation = 0.015;
-        if (totalRotation + deltaRotation > targetRotation) {
-          deltaRotation = targetRotation - totalRotation;
-        }
-        group.rotation.y += deltaRotation;
-        totalRotation += deltaRotation;
-      } else {
-        group.rotation.y = targetRotation;
-        // Если монета остановлена, сбрасываем подпрыгивание
-        group.position.y = 0;
-      }
+      if (autoStopAfterTurns) {
+        const remaining = targetRotation - totalRotation;
+        if (remaining > 0) {
+          const decelerationThreshold = 0.5;
+          let deltaRotation = 0.015;
+          if (remaining < decelerationThreshold) {
+            deltaRotation = 0.015 * (remaining / decelerationThreshold);
+          }
+          if (deltaRotation > remaining) {
+            deltaRotation = remaining;
+          }
+          group.rotation.y += deltaRotation;
+          totalRotation += deltaRotation;
 
-      // Если автоостановка не включена, продолжаем стандартное вращение
-      if (!autoStopAfterTurns) {
+          if (bounce) {
+            let bounceFactor = 1;
+            if (remaining < decelerationThreshold) {
+              bounceFactor = remaining / decelerationThreshold;
+            }
+            group.position.y =
+              Math.abs(Math.sin(elapsed * bounceSpeed)) *
+              bounceAmplitude *
+              bounceFactor;
+          }
+        } else {
+          group.rotation.y = targetRotation;
+          group.position.y = 0;
+        }
+      } else {
         if (bounce) {
-          const newY = Math.abs(Math.sin(elapsed * bounceSpeed)) * bounceAmplitude;
-          group.position.y = newY;
+          group.position.y =
+            Math.abs(Math.sin(elapsed * bounceSpeed)) * bounceAmplitude;
         }
         group.rotation.y += 0.015;
       }
@@ -210,6 +241,7 @@ const CoinWithEmbeddedStars: React.FC<CoinProps> = ({
     bounceSpeed,
     autoStopAfterTurns,
     numTurns,
+    rotationOffset,
   ]);
 
   return (
